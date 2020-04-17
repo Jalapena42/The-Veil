@@ -1,27 +1,49 @@
 'use strict';
 
-let admins = ["REECE","PHILIP"];
+let admins = ["REECE","PHILIP","DAVI"];
+let debugging = false;
 
 //                     0        1-20       21-40      41-60      61-80       81-100            
 let statusOptions = ["Dead","Suffering","Starving", "Hungry", "Satisfied", "Thriving"]
 let user = load();
 updateInventory();
 
-let maxFPS = 10;
-let lastFrameTimeMs = 0;    
-let nextDay = 60000;//speed of days in milliseconds
+let maxFPS = 60;
+let lastFrameTimeMs = 0; 
+
+// Duration variables (in ms)
+let dayTime = 60000;
+let nextDay = dayTime; 
+
+let lastHunt = 0;
+let huntTime = 10000;
+let canHunt = true;
+
+let lastEat = 0;
+let eatTime = 5000;
+let canEat = true;
 
 let buttonGetFood = document.querySelector('#getFood');
 let buttonEatFood = document.querySelector('#eatFood');
 let welcomeHeading = document.querySelector('#welcome');
+let elemTitleStatus = document.querySelector("#tab-title");
 let elemHealth = document.querySelector("#health");
 let elemStatus = document.querySelector("#status");
 let elemDay = document.querySelector("#day");
 
-let elapsedTime;
+addDialogue("Test");
+addDialogue("Tes2t");
 
 welcomeHeading.textContent = user.welcome;
 requestAnimationFrame(mainLoop);
+
+
+function gameSpeed(time, multiplier){
+    for(let i = 0; i < multiplier; i++){
+        time += time;
+    }
+    return time;
+}
 
 function mainLoop(timestamp) {
     if(timestamp < lastFrameTimeMs + (1000 / maxFPS)){
@@ -29,24 +51,32 @@ function mainLoop(timestamp) {
         return;
     }
     lastFrameTimeMs = timestamp;
-    if(timestamp > nextDay){
-        user.day++;
-        nextDay += 60000;
-    }
     update();
     requestAnimationFrame(mainLoop);
 }
 
 buttonGetFood.onclick = function(){
-    let food = new Item("Flesh")
-    user.health -= Math.floor(Math.random() * 10);
-    addItem(food);
+    if(canHunt == true){
+        let food = new Item("Flesh")
+        user.health -= Math.floor(Math.random() * 10);
+        addItem(food);
+        canHunt = false;
+        lastHunt = lastFrameTimeMs;
+    } else {
+        addDialogue(`You're currently resting, must wait ${Math.round((lastHunt + huntTime - lastFrameTimeMs)/1000)} second(s) to hunt again!`);
+    }
 }
 
 buttonEatFood.onclick = function(){
-    let eaten = removeItem("Flesh");
-    if(eaten == true){
-        user.health += 5;
+    if(canEat == true){
+        let eaten = removeItem("Flesh");
+        if(eaten == true){
+            user.health += 5;
+        }
+        canEat = false;
+        lastEat = lastFrameTimeMs;
+    } else {
+        addDialogue(`You're currently feasting, must wait ${Math.round((lastEat + eatTime - lastFrameTimeMs)/1000)} second(s) to eat again!`);
     }
 }
 
@@ -95,7 +125,15 @@ function updateInventory(){
     });
 }
 
-function User(name, status = "Thriving", health = 100, day = 0){   
+function addDialogue(text){
+    let diaBox = document.getElementById("Dialogue");
+    let node = document.createElement("P");
+    let textNode = document.createTextNode(text);
+    node.appendChild(textNode);
+    diaBox.appendChild(node);
+}
+
+function User(name, status = "Thriving", health = 40, day = 0){   
     if(name == null){
         name = "UNKNOWN"
     }
@@ -144,13 +182,37 @@ function load(){
 }
 
 function update(){
+    //Debug Check
+    if (debugging == true) {
+        eatTime = 0;
+        huntTime = 0;
+        dayTime = 10000;
+    }
+
+    //Day Cycle
+    if (lastFrameTimeMs > nextDay) {
+        user.health -= 10;
+        user.day++;
+        nextDay += dayTime;
+    }
+
+    //Hunt Cycle
+    if (canHunt == false) {
+        canHunt = (lastFrameTimeMs > lastHunt + huntTime) ? true : false;
+    }
+
+    //Eat Cycle
+    if(canEat == false) {
+        canEat = (lastFrameTimeMs > lastEat + eatTime) ? true : false;
+    }
+    if (getItemInvIdx("Flesh") == -1) buttonEatFood.style.visibility = "hidden";
+    else buttonEatFood.style.visibility = "visible";
+
+    //Health
     if(user.health == 0){
         alert("You have died");
         changeUser();
     }
-
-    if(getItemInvIdx("Flesh") == -1) buttonEatFood.style.visibility = "hidden";
-    else buttonEatFood.style.visibility = "visible";
 
     if(user.health > 100) user.health = 100;
     if(user.health < 0) user.health = 0;
@@ -162,9 +224,12 @@ function update(){
     else if (user.health >= 1) user.status = statusOptions[1];
     else user.status = statusOptions[0];
 
-
+    //Update HTML
     elemHealth.textContent = user.health;
-    elemStatus.textContent = user.status;
+    elemStatus.textContent = user.status;   
+    elemTitleStatus.textContent = `${user.status} Beast`;
     elemDay.textContent = user.day;
+
+    //Save Game
     localStorage.setItem('user', JSON.stringify(user));
 }
