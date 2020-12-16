@@ -1,26 +1,27 @@
-
 html {
     font-size: 16px;
     font-family: 'Shadows Into Light Two', cursive;
-    background-color: rgb(41, 22, 22);
+    background-color: rgb(20, 15, 15);
     color: white;
 }
 
-body{
-    width: 1000px; 
-    height: 500px;
-    margin: 100px auto;
-    background-color: rgb(77, 39, 39);
+body {
+    --special-text: rgb(132, 114, 143);
+    width: 1000px;
+    height: 700px;
+    margin: 25px auto;
+    background-color: rgb(46, 24, 24);
     padding: 0px 10px 0px 10px;
     border: 5px solid black;
+    position: relative;
 }
 
 h1 {
     font-size: 60px;
     text-align: left;
     margin: 0 auto;
-    padding: 20px 0;    
-    color: rgb(132, 114, 143);
+    padding: 20px 0;
+    color: var(--special-text);
     text-shadow: 3px 3px 5px black;
     letter-spacing: 2px;
 }
@@ -29,20 +30,21 @@ h2 {
     font-size: 30px;
 }
 
-p, li {  
-    font-size: 16px;    
+p,
+li {
+    font-size: 16px;
     line-height: 2;
     letter-spacing: 1px;
 }
 
 #reality:hover {
-    color:  rgb(41, 22, 22);
+    color: rgb(41, 22, 22);
     text-shadow: 3px 3px 5px black;
 }
 
 #reality {
-    text-decoration : none; 
-    color:  rgb(77, 39, 39);
+    text-decoration: none;
+    color: rgb(77, 39, 39);
     text-shadow: 0px 0px 0px black;
 }
 
@@ -52,7 +54,6 @@ p, li {
     border-collapse: collapse;
 
 }
-
 
 .column {
     width: 50%;
@@ -67,7 +68,12 @@ p, li {
 span {
     display: inline-block;
     width: 0;
-    height: 500px;
-    border-left: thick solid black; 
+    height: 700px;
+    border-left: thick solid black;
     border-right: thin solid black;
+}
+
+#choice1,
+#choice2 {
+    visibility: hidden;
 }
