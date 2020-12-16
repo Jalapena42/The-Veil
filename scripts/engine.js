@@ -132,10 +132,10 @@ function update(){
     else buttonEatFood.style.visibility = "visible";
 
     //Event Testing
-    if(user.day == 1 && ev1.queried == false){
-        currentEvent = ev1;
-        currentEvent.query();
-    }
+    // if(user.day == 1 && ev1.queried == false){
+    //     currentEvent = ev1;
+    //     currentEvent.query();
+    // }
 
     //Health
     if(user.health == 0){
