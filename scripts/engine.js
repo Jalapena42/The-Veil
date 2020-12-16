@@ -15,15 +15,15 @@ let CONSUMABLE_DB = new Map();
 let COLLECTIBLE_DB = new Map();
 itemInit();
 
-let user = load();
+let user;
+load();
 updateInventory();
 
-let maxFPS = 60;
+let maxFPS = 30;
 let lastFrameTimeMs = 0; 
 
 // Duration variables (in ms)
-let dayTime = 60000;
-let nextDay = dayTime; 
+let nextDayTime = 3600; 
 
 let lastHunt = 0;
 let huntTime = 10000;
@@ -76,46 +76,14 @@ function mainLoop(timestamp) {
     requestAnimationFrame(mainLoop);
 }
 
-function changeUser(){
-    localStorage.removeItem('user');
-    user = new User(prompt("Enter your name"));
-    localStorage.setItem('user', JSON.stringify(user));
-    welcomeHeading.textContent = user.welcome;
-    updateInventory();
-}
-
-function load(){
-    let user;
-    if (!localStorage.getItem('user')) {
-        user = new User(prompt("Enter your name"));
-        localStorage.setItem('user', JSON.stringify(user));
-    } else {
-        let tempUser = JSON.parse(localStorage.getItem('user'));
-        console.log(user);
-        user = new User(tempUser.name, tempUser.status, tempUser.health, tempUser.day);
-        //update inventory
-        for(let i = 0; i < tempUser.inventory.length; i++){
-            let tempItem = tempUser.inventory[i];
-            user.inventory[i] = new Item(tempItem.name, tempItem.count);
-        }
-    }
-    return user;
-}
-
 function update(){
-    //Debug Check
-
-    if (debugging == true) {
-        eatTime = 0;
-        huntTime = 0;
-        dayTime = 10000;
-    }
 
     //Day Cycle
-    if (lastFrameTimeMs > nextDay) {
+    user.time++;
+    if (user.time > nextDayTime) {
+        user.time = 0;
         user.health -= 10;
         user.day++;
-        nextDay += dayTime;
     }
 
     //Hunt Cycle
@@ -154,9 +122,7 @@ function update(){
 
     //Check if paused
     if(paused == true){
-        lastEat++;
-        lastHunt++;
-        nextDay++;
+
     }
 
     //Update HTML
@@ -165,11 +131,67 @@ function update(){
     elemTitleStatus.textContent = `${user.status} Beast`;
     elemDay.textContent = user.day;
 
-    //Save Game
-    localStorage.setItem('user', JSON.stringify(user));
+    save();
 }
 
-function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0){   
+//#region SAVE STATE SYSTEM
+function changeUser(){
+    localStorage.removeItem('user');
+    user = new User(prompt("Enter your name"));
+    localStorage.setItem('user', JSON.stringify(user));
+    welcomeHeading.textContent = user.welcome;
+    updateInventory();
+}
+
+function load(){
+    let loaduser;
+    if (!localStorage.getItem('user')) {
+        loaduser = new User(prompt("Enter your name"));
+        localStorage.setItem('user', JSON.stringify(loaduser));
+    } else {
+        let tempUser = JSON.parse(localStorage.getItem('user'), reviver);
+        loaduser = new User(tempUser.name, tempUser.status, tempUser.health, tempUser.day, tempUser.time);
+        loaduser.inventory = new Map(tempUser.inventory);
+    }
+    user = loaduser;
+    updateInventory();
+    return loaduser;
+}
+
+function save(){
+    let string = JSON.stringify(user, replacer);
+    localStorage.setItem('user', string);
+    return string;
+}
+
+function replacer(key,value) {
+    const origObj = this[key];
+    if(origObj instanceof Map){
+        return {
+            dataType: 'Map',
+            value: Array.from(origObj.entries()),
+        }
+    } else {
+        return value;
+    }
+
+}
+
+function reviver(key, value) {
+    if(typeof value === 'object' && value !== null){
+        if(value.dataType === 'Map') {
+            let map = new Map()
+            value.value.forEach(element => {
+                let invItem = new InvItem(element[1].name, element[1].type, element[1].count, element[1].durability);
+                map.set(element[0],invItem);
+            });
+            return map;
+        }
+    }
+    return value;
+}
+
+function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0, time = 0){   
     if(name == null){
         name = "UNKNOWN"
     }
@@ -177,6 +199,7 @@ function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0){
     this.status = status;
     this.health = health;
     this.day = day;
+    this.time = time;
     this.name = name;
     this.isAdmin = admins.includes(name.toUpperCase()) ? true : false;
     this.welcome = (this.isAdmin == true) ? `${this.name}'s Lair` : `${this.name}'s Hovel`;
@@ -185,8 +208,9 @@ function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0){
     }
 }
 //#endregion
+//#endregion
 
-//#region HTML/CSS Code
+//#region HTML/CSS CODE
 
 //#region Buttons 
 buttonChoice1.onclick = function(){
@@ -266,7 +290,7 @@ function addDialogue(text){
 
 //#endregion
 
-//#region Item System
+//#region ITEM SYSTEM
 
 function itemInit(){
     //#region COLLECTIBLE INIT
@@ -463,7 +487,6 @@ function addItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1){
     console.log(`Added ${name} x${count} to inventory`);
     return true;
 }
-
 //if count is -1, remove all of that item, 
 function removeItem(itemName, count = 1){
     if(user.inventory.get(itemName) == undefined){
@@ -474,7 +497,7 @@ function removeItem(itemName, count = 1){
         user.inventory.delete(itemName);
     } else {
         let invItem = user.inventory.get(itemName);
-        invitem.count -= count;
+        invItem.count -= count;
         user.inventory.set(itemName, invItem);
     }
     updateInventory();
