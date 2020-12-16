@@ -43,7 +43,6 @@ let elemTitleStatus = document.querySelector("#tab-title");
 let elemHealth = document.querySelector("#health");
 let elemStatus = document.querySelector("#status");
 let elemDay = document.querySelector("#day");
-let elemStability = document.querySelector("#stability");
 
 let numNotif = 0;
 
@@ -163,7 +162,6 @@ function update(){
     //Update HTML
     elemHealth.textContent = user.health;
     elemStatus.textContent = user.status;
-    elemStability.textContent = user.stability;   
     elemTitleStatus.textContent = `${user.status} Beast`;
     elemDay.textContent = user.day;
 
@@ -171,14 +169,13 @@ function update(){
     localStorage.setItem('user', JSON.stringify(user));
 }
 
-function User(name = "UNKNOWN", status = "Thriving", health = 40, stability = 12, day = 0){   
+function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0){   
     if(name == null){
         name = "UNKNOWN"
     }
     this.inventory = new Map();
     this.status = status;
     this.health = health;
-    this.stability = stability;
     this.day = day;
     this.name = name;
     this.isAdmin = admins.includes(name.toUpperCase()) ? true : false;
