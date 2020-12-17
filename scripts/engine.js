@@ -1,5 +1,13 @@
 'use strict';
 
+/*TODO:
+- Equip function needs to check if theres 1 item then you cant equip in both hands
+- Creature Part Items
+- Enemy Class (Enemy equipment slots, humans = user slots, creature = creature part slots)
+- Combat System
+    -use function
+*/
+
 //#region MAIN ENGINE CODE
 
 //#region INIT       
@@ -215,7 +223,7 @@ function reviver(key, value) {
 }
 
 function Player(name = "Poor Soul", inventory = null, equipment = null, status = statusOptions[2], hpMax = 100, hp = 40, invMaxSize = 20, invCurSize = 0, day = 0, time = 0){   
-    if(name == null){
+    if(name == ""){
         name = "Poor Soul"
     }
     this.inventory = (inventory == null) ? new Map():inventory;
@@ -270,14 +278,17 @@ function Player(name = "Poor Soul", inventory = null, equipment = null, status =
     }
     this.addItem = function(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1){
         let invItem = new InvItem(name, type, count);
-        let itemDB = getItem(invItem);
+        let item = getItem(invItem);
+        if(item == false){
+            return false;
+        }
         if(this.inventory.get(name) != undefined){
             invItem.count += player.inventory.get(name).count;
             invItem.durability = player.inventory.get(name).durability;
         }
-        this.invCurSize += itemDB.size;
+        this.invCurSize += item.size;
         if(this.invCurSize > this.invMaxSize){
-            this.invCurSize = this.invCurSize - itemDB.size;
+            this.invCurSize = this.invCurSize - item.size;
             addDialogue(`Failed to add ${name} to inventory: item too large.`);
             return false;
         }
@@ -287,6 +298,25 @@ function Player(name = "Poor Soul", inventory = null, equipment = null, status =
         addDialogue(`Added ${name} x${count} to inventory`);
         return true;
     
+    }
+    this.removeItem = function(itemName, count = 1){
+        if(this.inventory.get(itemName) == undefined){
+            console.log(`There is no ${itemName} to remove!`);
+            return false;
+        }
+        let invItem = this.inventory.get(itemName);
+        if (count >= this.inventory.get(itemName).count || count == -1){
+            this.invCurSize -= getItem(invItem).size*invItem.count;
+            this.inventory.delete(itemName);
+        } else { 
+            invItem.count -= count;
+            this.invCurSize -= getItem(invItem).size*count;
+            this.inventory.set(itemName, invItem);
+        }
+        updateInventory();
+        localStorage.setItem('player', JSON.stringify(player));
+        console.log(`Removed ${(count == -1) ? "all" : count} ${itemName}(s) from inventory`);
+        return true;
     }
     this.equip = function(slot = "LeftHand", invItem = new InvItem("Empty","COLLECTIBLE")){
         let item = getItem(invItem);
@@ -348,7 +378,7 @@ buttonGetFood.onclick = function(){
     if(canHunt == true){
         addDialogue(`The hunt commences...`);
         player.damage(rollDice(["1d8","1d4"]), damageTypes[Math.floor(Math.random()*4)]);
-        addItem("Flesh", "COLLECTIBLE", 1);
+        player.addItem("Flesh", "COLLECTIBLE", 1);
         canHunt = false;
         lastHunt = lastFrameTimeMs;
         addDialogue(`Must rest and wait ${Math.round(huntTime /1000)} seconds to hunt again.`);
@@ -360,7 +390,7 @@ buttonGetFood.onclick = function(){
 buttonEatFood.onclick = function(){
     if(canEat == true){
         addDialogue(`You begin feasting...`);
-        let eaten = removeItem("Flesh");
+        let eaten = player.removeItem("Flesh");
         if(eaten == true){
             player.recover(rollDice(["1d8"]));
         }
@@ -383,7 +413,7 @@ function updateInventory(){
         let node = document.createElement("LI");
         let textNode;
         if(value.type != "COLLECTIBLE"){
-            textNode = document.createTextNode(`${value.name} x${value.count} <|> Dur: ${value.durability}/100 `);
+            textNode = document.createTextNode(`${value.name} x${value.count} <|> ${value.durability}/100 `);
         } else {
             textNode = document.createTextNode(`${value.name} x${value.count}`);
         }
@@ -496,7 +526,6 @@ function itemInit(){
         1, 
         10
     ); //Wrench
-
     createWeaponItem(
         "Fist", 
         "Nothin' like a good old knuckle sandwich",
@@ -620,27 +649,6 @@ function createWeaponItem(name = "UNIDENTIFIED", desc = "An item shrouded in mys
     WEAPON_DB.set(weapon.name, weapon)
 }
 
-function addItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1){
-    let invItem = new InvItem(name, type, count);
-    let itemDB = getItem(invItem);
-    if(player.inventory.get(name) != undefined){
-        invItem.count += player.inventory.get(name).count;
-        invItem.durability = player.inventory.get(name).durability;
-    }
-    player.invCurSize += itemDB.size;
-    if(player.invCurSize > player.invMaxSize){
-        player.invCurSize = player.invCurSize - itemDB.size;
-        console.log(`Failed to add ${name} to inventory: item too large.`)
-        return false;
-    }
-    player.inventory.set(name, invItem)
-    updateInventory();
-    localStorage.setItem('player', JSON.stringify(player));
-    console.log(`Added ${name} x${count} to inventory`);
-    return true;
-    
-}
-
 function getItem(invItem = null){
     if(invItem == null){
         console.log("ERROR: attempting to retrieve a null item.")
@@ -677,24 +685,6 @@ function getItem(invItem = null){
             break;
     }
     return database.get(invItem.name);
-}
-//if count is -1, remove all of that item, 
-function removeItem(itemName, count = 1){
-    if(player.inventory.get(itemName) == undefined){
-        console.log(`There is no ${itemName} to remove!`);
-        return false;
-    }
-    if (count >= player.inventory.get(itemName).count || count == -1){
-        player.inventory.delete(itemName);
-    } else {
-        let invItem = player.inventory.get(itemName);
-        invItem.count -= count;
-        player.inventory.set(itemName, invItem);
-    }
-    updateInventory();
-    localStorage.setItem('player', JSON.stringify(player));
-    console.log(`Removed ${(count == -1) ? "all" : count} ${itemName}(s) from inventory`);
-    return true;
 }
 
 //#endregion
@@ -733,6 +723,5 @@ function Event(prompt = "RANDOM", c1text = "DONE", c2text = "FAILED", risk = 1, 
         }
     }
 }
-
 //// COMBAT MECHANICS
 
