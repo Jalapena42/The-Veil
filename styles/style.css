@@ -8,7 +8,7 @@ html {
 body {
     --special-text: rgb(132, 114, 143);
     width: 1000px;
-    height: 700px;
+    height: 1200px;
     margin: 25px auto;
     background-color: rgb(46, 24, 24);
     padding: 0px 10px 0px 10px;
@@ -68,7 +68,7 @@ li {
 span {
     display: inline-block;
     width: 0;
-    height: 700px;
+    height: 1200px;
     border-left: thick solid black;
     border-right: thin solid black;
 }

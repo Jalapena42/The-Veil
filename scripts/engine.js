@@ -16,9 +16,10 @@ let CONSUMABLE_DB = new Map();
 let COLLECTIBLE_DB = new Map();
 itemInit();
 
-let user;
+let player;
 load();
 updateInventory();
+updateEquipment();
 
 let maxFPS = 30;
 let lastFrameTimeMs = 0; 
@@ -50,7 +51,7 @@ let numNotif = 0;
 let c1 = false;
 let c2 = false;
 
-welcomeHeading.textContent = user.welcome;
+welcomeHeading.textContent = player.welcome;
 
 //Event Testing
 //let ev1 = new Event("Destroy the village?","The village is in ruin.","The village was spared.",3,[new Item("Flesh",10),new Item("Common Clothes",2)]);
@@ -80,11 +81,11 @@ function mainLoop(timestamp) {
 function update(){
 
     //Day Cycle
-    user.time++;
-    if (user.time > nextDayTime) {
-        user.time = 0;
-        user.damage(rollDice(["1d10"]),"Mind");
-        user.day++;
+    player.time++;
+    if (player.time > nextDayTime) {
+        player.time = 0;
+        player.damage(rollDice(["1d10"]),"Mind");
+        player.day++;
     }
 
     //Hunt Cycle
@@ -96,11 +97,11 @@ function update(){
     if(canEat == false) {
         canEat = (lastFrameTimeMs > lastEat + eatTime) ? true : false;
     }
-    if (user.inventory.get("Flesh") == undefined) buttonEatFood.style.visibility = "hidden";
+    if (player.inventory.get("Flesh") == undefined) buttonEatFood.style.visibility = "hidden";
     else buttonEatFood.style.visibility = "visible";
 
     //Event Testing
-    // if(user.day == 1 && ev1.queried == false){
+    // if(player.day == 1 && ev1.queried == false){
     //     currentEvent = ev1;
     //     currentEvent.query();
     // }
@@ -110,10 +111,10 @@ function update(){
     }
 
     //Update HTML
-    elemHealth.textContent = user.hp;
-    elemStatus.textContent = user.status;
-    elemTitleStatus.textContent = `${user.status} Beast`;
-    elemDay.textContent = user.day;
+    elemHealth.textContent = player.hp;
+    elemStatus.textContent = player.status;
+    elemTitleStatus.textContent = `${player.status} Beast`;
+    elemDay.textContent = player.day;
 
     save();
 }
@@ -147,34 +148,42 @@ function rollDice(dArr = ["1d8"]){
 }
 
 //#region SAVE STATE SYSTEM
-function changeUser(){
-    localStorage.removeItem('user');
-    user = new User(prompt("Enter your name"));
-    localStorage.setItem('user', JSON.stringify(user, replacer));
-    welcomeHeading.textContent = user.welcome;
+function changePlayer(){
+    localStorage.removeItem('player');
+    player = new Player(prompt("Enter your name"));
+    localStorage.setItem('player', JSON.stringify(player, replacer));
+    welcomeHeading.textContent = player.welcome;
     lastFrameTimeMs = 0;
     lastHunt = 0;
     lastEat = 0;
     updateInventory();
+    updateEquipment(); 
+
+/*
+    0   0
+      |
+      |
+      V
+*/
 }
 
 function load(){
-    let loaduser;
-    if (!localStorage.getItem('user')) {
-        loaduser = new User(prompt("Enter your name"));
-        localStorage.setItem('user', JSON.stringify(loaduser));
+    let loadplayer;
+    if (!localStorage.getItem('player')) {
+        loadplayer = new Player(prompt("Enter your name"));
+        localStorage.setItem('player', JSON.stringify(loadplayer));
     } else {
-        let tempUser = JSON.parse(localStorage.getItem('user'), reviver);
-        loaduser = new User(tempUser.name, new Map(tempUser.inventory), new Map(tempUser.equipment), tempUser.status, tempUser.hpMax, tempUser.hp, tempUser.day, tempUser.time);
+        let tempPlayer = JSON.parse(localStorage.getItem('player'), reviver);
+        loadplayer = new Player(tempPlayer.name, new Map(tempPlayer.inventory), new Map(tempPlayer.equipment), tempPlayer.status, tempPlayer.hpMax, tempPlayer.hp, tempPlayer.invMaxSize, tempPlayer.invSize, tempPlayer.day, tempPlayer.time);
     }
-    user = loaduser;
+    player = loadplayer;
     updateInventory();
-    return loaduser;
+    return loadplayer;
 }
 
 function save(){
-    let string = JSON.stringify(user, replacer);
-    localStorage.setItem('user', string);
+    let string = JSON.stringify(player, replacer);
+    localStorage.setItem('player', string);
     return string;
 }
 
@@ -205,7 +214,7 @@ function reviver(key, value) {
     return value;
 }
 
-function User(name = "Poor Soul", inventory = null, equipment = null, status = statusOptions[2], hpMax = 100, hp = 40, day = 0, time = 0){   
+function Player(name = "Poor Soul", inventory = null, equipment = null, status = statusOptions[2], hpMax = 100, hp = 40, invMaxSize = 20, invCurSize = 0, day = 0, time = 0){   
     if(name == null){
         name = "Poor Soul"
     }
@@ -213,6 +222,8 @@ function User(name = "Poor Soul", inventory = null, equipment = null, status = s
     this.equipment = (equipment == null) ? new Map([["Head", new InvItem("Human Skull", "ARMOR")],["Body", new InvItem("Human Torso", "ARMOR")], ["Legs", new InvItem("Human Legs", "ARMOR")], ["LeftHand", new InvItem("Fist", "WEAPON")], ["RightHand", new InvItem("Fist", "WEAPON")],["Belt1", new InvItem("Empty","COLLECTIBLE")], ["Belt2", new InvItem("Empty","COLLECTIBLE")], ["Belt3", new InvItem("Empty","COLLECTIBLE")]]):equipment;
     this.status = status;
     this.hpMax = hpMax;
+    this.invMaxSize = invMaxSize;
+    this.invCurSize = invCurSize;
     this.hp = hp; 
     this.day = day;
     this.time = time;
@@ -222,7 +233,7 @@ function User(name = "Poor Soul", inventory = null, equipment = null, status = s
     this.toString = function(){
         return this.name;
     }
-    //User Methods
+    //Player Methods
     this.recover = function(amt = 1){ //
         let amtRec;
         if(amt <= 0) amtRec = 0;
@@ -245,7 +256,7 @@ function User(name = "Poor Soul", inventory = null, equipment = null, status = s
             this.hp = 0;
             this.status = statusOptions[0];
             addDialogue(`You've succumbed to your wounds after taking ${amtDmg} ${type} damage.`)
-            changeUser();
+            changePlayer();
             return amtDmg;
         } else {
             addDialogue(`You take ${amtDmg} ${type} damage.`);
@@ -256,6 +267,59 @@ function User(name = "Poor Soul", inventory = null, equipment = null, status = s
             else if (this.hp >= 1) this.status = statusOptions[1];
             return amtDmg;
         }
+    }
+    this.addItem = function(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1){
+        let invItem = new InvItem(name, type, count);
+        let itemDB = getItem(invItem);
+        if(this.inventory.get(name) != undefined){
+            invItem.count += player.inventory.get(name).count;
+            invItem.durability = player.inventory.get(name).durability;
+        }
+        this.invCurSize += itemDB.size;
+        if(this.invCurSize > this.invMaxSize){
+            this.invCurSize = this.invCurSize - itemDB.size;
+            addDialogue(`Failed to add ${name} to inventory: item too large.`);
+            return false;
+        }
+        player.inventory.set(name, invItem)
+        updateInventory();
+        localStorage.setItem('player', JSON.stringify(player));
+        addDialogue(`Added ${name} x${count} to inventory`);
+        return true;
+    
+    }
+    this.equip = function(slot = "LeftHand", invItem = new InvItem("Empty","COLLECTIBLE")){
+        let item = getItem(invItem);
+        if(this.inventory.get(item.name) == undefined){
+            console.log(`ERROR: Player doesn't have ${item.name} and can't equip it!`);
+            return false;
+        }
+        if(slot.includes("Head") && !(item.slots.includes("Head"))){
+            addDialogue(`Cannot equip ${item.name}! Invalid slot.`)
+            return false;
+        }
+        else if(slot.includes("Body") && !(item.slots.includes("Body"))) {
+            addDialogue(`Cannot equip ${item.name}! Invalid slot.`)
+        }
+        else if(slot.includes("Legs") && !(item.slots.includes("Legs"))){
+            addDialogue(`Cannot equip ${item.name}! Invalid slot.`)
+            return false;
+        }
+        else if(slot.includes("Hand") && !(item.slots.includes("Hand"))){
+            addDialogue(`Cannot equip ${item.name}! Invalid slot.`)
+            return false;
+        }
+        else if(slot.includes("Belt") && !(item.slots.includes("Belt"))){
+            addDialogue(`Cannot equip ${item.name}! Invalid slot.`)
+            return false;
+        }
+        if(this.equipment.get(slot).name == "Blocked"){
+            addDialogue(`Cannot equip ${item.name}! The slot is currently blocked.`);
+            return false;
+        }
+        this.equipment.set(slot, invItem);
+        updateEquipment();
+        return true;
     }
 
 }
@@ -283,7 +347,7 @@ buttonGetFood.onclick = function(){
     
     if(canHunt == true){
         addDialogue(`The hunt commences...`);
-        user.damage(rollDice(["1d8","1d4"]), damageTypes[Math.floor(Math.random()*4)]);
+        player.damage(rollDice(["1d8","1d4"]), damageTypes[Math.floor(Math.random()*4)]);
         addItem("Flesh", "COLLECTIBLE", 1);
         canHunt = false;
         lastHunt = lastFrameTimeMs;
@@ -298,7 +362,7 @@ buttonEatFood.onclick = function(){
         addDialogue(`You begin feasting...`);
         let eaten = removeItem("Flesh");
         if(eaten == true){
-            user.recover(rollDice(["1d8"]));
+            player.recover(rollDice(["1d8"]));
         }
         canEat = false;
         lastEat = lastFrameTimeMs;
@@ -309,16 +373,15 @@ buttonEatFood.onclick = function(){
 }
 
 buttonRestart.onclick = function(){
-    changeUser();
+    changePlayer();
 }
 //#endregion
 
 function updateInventory(){
-    if(!user.inventory) user.inventory = new Map();
     document.getElementById("Inventory").innerHTML = "";
-    user.inventory.forEach(function(value, key, map){
+    player.inventory.forEach(function(value, key, map){
         let node = document.createElement("LI");
-        let textNode
+        let textNode;
         if(value.type != "COLLECTIBLE"){
             textNode = document.createTextNode(`${value.name} x${value.count} <|> Dur: ${value.durability}/100 `);
         } else {
@@ -326,6 +389,16 @@ function updateInventory(){
         }
         node.appendChild(textNode);
         document.getElementById("Inventory").appendChild(node);
+    });
+}
+
+function updateEquipment(){
+    document.getElementById("Equipped").innerHTML = "";
+    player.equipment.forEach(function(value, key, map){
+        let node = document.createElement("LI");
+        let textNode = document.createTextNode(`${key}: ${value.name}`);
+        node.appendChild(textNode);
+        document.getElementById("Equipped").appendChild(node);
     });
 }
 
@@ -352,7 +425,8 @@ function itemInit(){
     createCollectibleItem(
         name, 
         desc,  
-        weight, 
+        size,
+        slots,
         value, 
         rarity
     );
@@ -362,13 +436,23 @@ function itemInit(){
         "Empty",
         "There's nothing here.",
         0,
+        ["Head", "Body", "Legs", "Hand", "Belt"],
         0,
         "Useless"
     );//Empty
     createCollectibleItem(
+        "Blocked",
+        "Unusable",
+        0,
+        ["Head", "Body", "Legs", "Hand", "Belt"],
+        0,
+        "Useless"
+    );//Blocked
+    createCollectibleItem(
         "Flesh", 
         "Raw meat, still dripping with blood.",  
-        3, 
+        1,
+        ["Belt"],
         5, 
         "Commodity"
     );//Flesh
@@ -386,7 +470,8 @@ function itemInit(){
     createWeaponItem(
         name, 
         desc,  
-        weight, 
+        size,
+        slots,
         value, 
         rarity,
         damage, 
@@ -401,7 +486,8 @@ function itemInit(){
     createWeaponItem(
         "Wrench", 
         "A sturdy tool for fixing ... or bludgeoning.", 
-        2, 
+        .5,
+        ["Hand","Belt"],
         10, 
         "Commodity",
         "1d4", 
@@ -410,22 +496,12 @@ function itemInit(){
         1, 
         10
     ); //Wrench
-    createWeaponItem(
-        "Corpse Feasters Maw", 
-        "Two gaping maws fused to a single malformed skull, one for crushing bone, the other for tearing flesh. Smaller in size and vaguely human.", 
-        10, 
-        0, 
-        "Useless",
-        "1d8", 
-        "Piercing", 
-        0, 
-        1,
-        0
-    ); //Corpse Feasters Maw
+
     createWeaponItem(
         "Fist", 
         "Nothin' like a good old knuckle sandwich",
-        3, 
+        .25,
+        ["Hand"],
         0, 
         "Niche", 
         "1d4", 
@@ -444,7 +520,8 @@ function itemInit(){
     createArmorItem(
         name,
         desc,
-        weight,
+        size,
+        slots,
         value,
         rarity,
         defense,
@@ -456,37 +533,56 @@ function itemInit(){
     createArmorItem(
         "Human Torso",
         "Flesh mounted upon bone",
-        0,
+        4,
+        ["Body"],
         0,
         "Niche",
         10,
         "Natural",
         0
     ); //Human Torso
+    //#endregion
 
+    //#region CREATURE PART INIT
+    //TODO:
     createArmorItem(
         "Corpse Feaster Muscle",
         "Taught, stubborn, cold meat with an offensive stench",
-        5,
+        1,
+        [],
         0,
         "Useless",
         14,
         "Natural",
         0
     ); //Corpse Feaster Muscle
+    createWeaponItem(
+        "Corpse Feaster Maw", 
+        "Two gaping maws fused to a single malformed skull, one for crushing bone, the other for tearing flesh. Smaller in size and vaguely human.", 
+        2,
+        [],
+        0, 
+        "Useless",
+        "1d8", 
+        "Piercing", 
+        0, 
+        1,
+        0
+    ); //Corpse Feaster Maw
     //#endregion
 }
 
-function Item(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Commodity"){
+function Item(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Belt"], value = 0, rarity = "Commodity"){
     this.name = name;
-    this.weight = weight;
+    this.size = size;
     this.value = value;
     this.desc = desc;
+    this.slots = slots;
     this.rarity = rarity;
 }
 
-function Weapon(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Commodity", damage = "1d8", type = "bludgeoning", durabilityLoss = 10, range = 1, range2 = 0){
-    Item.call(this, name, desc, weight, value, rarity);
+function Weapon(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Hand","Belt"], value = 0, rarity = "Commodity", damage = "1d8", type = "Bludgeoning", durabilityLoss = 10, range = 1, range2 = 0){
+    Item.call(this, name, desc, size, slots, value, rarity);
     this.damage = damage;
     this.type = type;
     this.durabilityLoss = durabilityLoss;
@@ -495,13 +591,14 @@ function Weapon(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", wei
 
 }
 
-function Armor(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Niche", defense = 10, type = "natural", durabilityLoss = -1, reduction = 0){
-    Item.call(this, name, desc, weight, value);
+function Armor(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Head","Body","Legs"], value = 0, rarity = "Niche", defense = 10, type = "Natural", durabilityLoss = -1, reduction = 0){
+    Item.call(this, name, desc, size, slots, value, rarity);
     this.defense = defense;
     this.type = type;
     this.durabilityLoss = durabilityLoss;
     this.reduction = reduction;
 }
+
 
 function InvItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1, durability = 100){
     this.name = name;
@@ -510,72 +607,92 @@ function InvItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1, durabil
     this.durability = durability;
 }
 
-function createCollectibleItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Commodity"){
-    let item = new Item(name, desc, weight, value, rarity);
+function createCollectibleItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Belt"], value = 0, rarity = "Commodity"){
+    let item = new Item(name, desc, size, slots, value, rarity);
     COLLECTIBLE_DB.set(item.name, item);
 }
-function createArmorItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Niche", defense = 10, type = "natural", durabilityLoss = -1, reduction = 0){
-    let armor = new Armor(name, desc, weight, value, rarity, defense, type, durabilityLoss, reduction);
+function createArmorItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Head","Body","Legs"], value = 0, rarity = "Niche", defense = 10, type = "Natural", durabilityLoss = -1, reduction = 0){
+    let armor = new Armor(name, desc, size, slots, value, rarity, defense, type, durabilityLoss, reduction);
     ARMOR_DB.set(armor.name, armor);
 } 
-function createWeaponItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Commodity", damage = "1d8", type = "bludgeoning", durabilityLoss = 10, range = 1, range2 = 0){
-    let weapon = new Weapon(name, desc, weight, value, rarity, damage, type, durabilityLoss, range, range2);
+function createWeaponItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Hands","Belt"], value = 0, rarity = "Commodity", damage = "1d8", type = "Bludgeoning", durabilityLoss = 10, range = 1, range2 = 0){
+    let weapon = new Weapon(name, desc, size, slots, value, rarity, damage, type, durabilityLoss, range, range2);
     WEAPON_DB.set(weapon.name, weapon)
 }
 
 function addItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1){
-    switch(type){
+    let invItem = new InvItem(name, type, count);
+    let itemDB = getItem(invItem);
+    if(player.inventory.get(name) != undefined){
+        invItem.count += player.inventory.get(name).count;
+        invItem.durability = player.inventory.get(name).durability;
+    }
+    player.invCurSize += itemDB.size;
+    if(player.invCurSize > player.invMaxSize){
+        player.invCurSize = player.invCurSize - itemDB.size;
+        console.log(`Failed to add ${name} to inventory: item too large.`)
+        return false;
+    }
+    player.inventory.set(name, invItem)
+    updateInventory();
+    localStorage.setItem('player', JSON.stringify(player));
+    console.log(`Added ${name} x${count} to inventory`);
+    return true;
+    
+}
+
+function getItem(invItem = null){
+    if(invItem == null){
+        console.log("ERROR: attempting to retrieve a null item.")
+    }
+    let database;
+    switch(invItem.type){
         case "COLLECTIBLE":
-            if(COLLECTIBLE_DB.get(name) == undefined) {
-                console.log(`Failed to add ${name} to inventory, item DNE`);
+            database = COLLECTIBLE_DB;
+            if(COLLECTIBLE_DB.get(invItem.name) == undefined) {
+                console.log(`Failed to get ${invItem.name}, item DNE`);
                 return false;
             }
             break;
         case "CONSUMABLE":
-            if(CONSUMABLE_DB.get(name) == undefined) {
-                console.log(`Failed to add ${name} to inventory, item DNE`);
+            database = CONSUMABLE_DB;
+            if(CONSUMABLE_DB.get(invItem.name) == undefined) {
+                console.log(`Failed to get ${invItem.name}, item DNE`);
                 return false;
             }
             break;
         case "ARMOR":
-            if(ARMOR_DB.get(name) == undefined) {
-                console.log(`Failed to add ${name} to inventory, item DNE`);
+            database = ARMOR_DB;
+            if(ARMOR_DB.get(invItem.name) == undefined) {
+                console.log(`Failed to get ${invItem.name}, item DNE`);
                 return false;
             }
             break;
         case "WEAPON":
-            if(WEAPON_DB.get(name) == undefined) {
-                console.log(`Failed to add ${name} to inventory, item DNE`);
+            database = WEAPON_DB;
+            if(WEAPON_DB.get(invItem.name) == undefined) {
+                console.log(`Failed to get ${invItem.name}, item DNE`);
                 return false;
             }
             break;
     }
-    let invItem = new InvItem(name, type, count);
-    if(user.inventory.get(name) != undefined){
-        invItem.count += user.inventory.get(name).count;
-        invItem.durability = user.inventory.get(name).durability;
-    }
-    user.inventory.set(name, invItem);
-    updateInventory();
-    localStorage.setItem('user', JSON.stringify(user));
-    console.log(`Added ${name} x${count} to inventory`);
-    return true;
+    return database.get(invItem.name);
 }
 //if count is -1, remove all of that item, 
 function removeItem(itemName, count = 1){
-    if(user.inventory.get(itemName) == undefined){
+    if(player.inventory.get(itemName) == undefined){
         console.log(`There is no ${itemName} to remove!`);
         return false;
     }
-    if (count >= user.inventory.get(itemName).count || count == -1){
-        user.inventory.delete(itemName);
+    if (count >= player.inventory.get(itemName).count || count == -1){
+        player.inventory.delete(itemName);
     } else {
-        let invItem = user.inventory.get(itemName);
+        let invItem = player.inventory.get(itemName);
         invItem.count -= count;
-        user.inventory.set(itemName, invItem);
+        player.inventory.set(itemName, invItem);
     }
     updateInventory();
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('player', JSON.stringify(player));
     console.log(`Removed ${(count == -1) ? "all" : count} ${itemName}(s) from inventory`);
     return true;
 }
@@ -619,7 +736,3 @@ function Event(prompt = "RANDOM", c1text = "DONE", c2text = "FAILED", risk = 1, 
 
 //// COMBAT MECHANICS
 
-//Damage Types []
-
-// Stat Ratings [1-5] 
-// 1: Minima, 2: Low, 3: Average, 4: High, 5: Maxima
