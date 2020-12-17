@@ -165,8 +165,7 @@ function load(){
         localStorage.setItem('user', JSON.stringify(loaduser));
     } else {
         let tempUser = JSON.parse(localStorage.getItem('user'), reviver);
-        loaduser = new User(tempUser.name, tempUser.status, tempUser.hpMax, tempUser.hp, tempUser.day, tempUser.time);
-        loaduser.inventory = new Map(tempUser.inventory);
+        loaduser = new User(tempUser.name, new Map(tempUser.inventory), new Map(tempUser.equipment), tempUser.status, tempUser.hpMax, tempUser.hp, tempUser.day, tempUser.time);
     }
     user = loaduser;
     updateInventory();
@@ -198,7 +197,7 @@ function reviver(key, value) {
             let map = new Map()
             value.value.forEach(element => {
                 let invItem = new InvItem(element[1].name, element[1].type, element[1].count, element[1].durability);
-                map.set(element[0],invItem);
+                map.set(element[0], invItem);
             });
             return map;
         }
@@ -206,14 +205,15 @@ function reviver(key, value) {
     return value;
 }
 
-function User(name = "UNKNOWN", status = statusOptions[2], hpMax = 100, hp = 40, day = 0, time = 0){   
+function User(name = "Poor Soul", inventory = null, equipment = null, status = statusOptions[2], hpMax = 100, hp = 40, day = 0, time = 0){   
     if(name == null){
-        name = "UNKNOWN"
+        name = "Poor Soul"
     }
-    this.inventory = new Map();
+    this.inventory = (inventory == null) ? new Map():inventory;
+    this.equipment = (equipment == null) ? new Map([["Head", new InvItem("Human Skull", "ARMOR")],["Body", new InvItem("Human Torso", "ARMOR")], ["Legs", new InvItem("Human Legs", "ARMOR")], ["LeftHand", new InvItem("Fist", "WEAPON")], ["RightHand", new InvItem("Fist", "WEAPON")],["Belt1", new InvItem("Empty","COLLECTIBLE")], ["Belt2", new InvItem("Empty","COLLECTIBLE")], ["Belt3", new InvItem("Empty","COLLECTIBLE")]]):equipment;
     this.status = status;
     this.hpMax = hpMax;
-    this.hp = hp;
+    this.hp = hp; 
     this.day = day;
     this.time = time;
     this.name = name;
@@ -359,12 +359,19 @@ function itemInit(){
     */
     //#endregion
     createCollectibleItem(
+        "Empty",
+        "There's nothing here.",
+        0,
+        0,
+        "Useless"
+    );//Empty
+    createCollectibleItem(
         "Flesh", 
-        "Raw meat, still dripping blood",  
+        "Raw meat, still dripping with blood.",  
         3, 
         5, 
         "Commodity"
-    );
+    );//Flesh
     //#endregion
 
     //#region CONSUMABLE INIT
@@ -393,7 +400,7 @@ function itemInit(){
     //#endregion
     createWeaponItem(
         "Wrench", 
-        "A sturdy tool for fixing ... or bludgeoning", 
+        "A sturdy tool for fixing ... or bludgeoning.", 
         2, 
         10, 
         "Commodity",
@@ -415,6 +422,19 @@ function itemInit(){
         1,
         0
     ); //Corpse Feasters Maw
+    createWeaponItem(
+        "Fist", 
+        "Nothin' like a good old knuckle sandwich",
+        3, 
+        0, 
+        "Niche", 
+        "1d4", 
+        "Bludgeoning", 
+        0, 
+        1, 
+        0
+    ); //Fist
+
 
     //#endregion
 
@@ -434,15 +454,15 @@ function itemInit(){
      */
     //#endregion
     createArmorItem(
-        "Human Skin",
-        "Your fleshy hide",
+        "Human Torso",
+        "Flesh mounted upon bone",
         0,
         0,
         "Niche",
         10,
         "Natural",
         0
-    ); //Human Skin
+    ); //Human Torso
 
     createArmorItem(
         "Corpse Feaster Muscle",
@@ -489,6 +509,7 @@ function InvItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1, durabil
     this.count = count;
     this.durability = durability;
 }
+
 function createCollectibleItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", weight = 0, value = 0, rarity = "Commodity"){
     let item = new Item(name, desc, weight, value, rarity);
     COLLECTIBLE_DB.set(item.name, item);
