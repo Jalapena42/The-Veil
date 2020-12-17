@@ -9,6 +9,7 @@ let paused = false;
 
 //                     0        1-20       21-40      41-60      61-80       81-100   
 let statusOptions = ["Dead","Suffering","Starving", "Hungry", "Satisfied", "Thriving"]
+let damageTypes = ["Bludgeoning","Piercing","Cutting","Explosive","Fire","Cold","Acid","Electric","Poison","Mind"];
 let WEAPON_DB = new Map();
 let ARMOR_DB = new Map();
 let CONSUMABLE_DB = new Map();
@@ -82,7 +83,7 @@ function update(){
     user.time++;
     if (user.time > nextDayTime) {
         user.time = 0;
-        user.health -= 10;
+        user.damage(rollDice(["1d10"]),"Mind");
         user.day++;
     }
 
@@ -104,29 +105,12 @@ function update(){
     //     currentEvent.query();
     // }
 
-    //Health
-    if(user.health == 0){
-        alert("You have died");
-        changeUser();
-    }
-
-    if(user.health > 100) user.health = 100;
-    if(user.health < 0) user.health = 0;
-
-    if(user.health >= 81) user.status = statusOptions[5]
-    else if(user.health >= 61) user.status = statusOptions[4];
-    else if (user.health >= 41) user.status = statusOptions[3];
-    else if (user.health >= 21) user.status = statusOptions[2];
-    else if (user.health >= 1) user.status = statusOptions[1];
-    else user.status = statusOptions[0];
-
     //Check if paused
     if(paused == true){
-
     }
 
     //Update HTML
-    elemHealth.textContent = user.health;
+    elemHealth.textContent = user.hp;
     elemStatus.textContent = user.status;
     elemTitleStatus.textContent = `${user.status} Beast`;
     elemDay.textContent = user.day;
@@ -134,12 +118,43 @@ function update(){
     save();
 }
 
+//Roll one, or multiple dice for a specific damage type
+function rollDice(dArr = ["1d8"]){
+    let rStr = "Rolling";
+    let oStr = ":";
+    let total = 0;
+    for(let i = 0; i < dArr.length; i++){
+        let dStr = dArr[i];
+        if(i == 0) rStr = rStr + ` ${dStr}`;
+        else rStr = rStr + ` + ${dStr}`;
+        let dIndex = dStr.indexOf("d");
+        let num = parseInt(dStr.substring(0,dIndex),10);
+        let size = parseInt(dStr.substring(dIndex+1),10);
+        if(num <= 0 || size <= 0){
+            console.log("Error, cannot roll with non-positive integers");
+            return 0;
+        }
+        for(let j = 0; j < num; j++){
+            let result = parseInt(Math.floor(Math.random() * size)+1);
+            total += result;
+            if(i == 0 && j == 0) oStr += ` ${result}`;
+            else oStr += ` + ${result}`;
+        }
+    }
+    rStr = rStr + oStr + ` = ${total}`;
+    console.log(rStr);
+    return total;
+}
+
 //#region SAVE STATE SYSTEM
 function changeUser(){
     localStorage.removeItem('user');
     user = new User(prompt("Enter your name"));
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem('user', JSON.stringify(user, replacer));
     welcomeHeading.textContent = user.welcome;
+    lastFrameTimeMs = 0;
+    lastHunt = 0;
+    lastEat = 0;
     updateInventory();
 }
 
@@ -150,7 +165,7 @@ function load(){
         localStorage.setItem('user', JSON.stringify(loaduser));
     } else {
         let tempUser = JSON.parse(localStorage.getItem('user'), reviver);
-        loaduser = new User(tempUser.name, tempUser.status, tempUser.health, tempUser.day, tempUser.time);
+        loaduser = new User(tempUser.name, tempUser.status, tempUser.hpMax, tempUser.hp, tempUser.day, tempUser.time);
         loaduser.inventory = new Map(tempUser.inventory);
     }
     user = loaduser;
@@ -191,13 +206,14 @@ function reviver(key, value) {
     return value;
 }
 
-function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0, time = 0){   
+function User(name = "UNKNOWN", status = statusOptions[2], hpMax = 100, hp = 40, day = 0, time = 0){   
     if(name == null){
         name = "UNKNOWN"
     }
     this.inventory = new Map();
     this.status = status;
-    this.health = health;
+    this.hpMax = hpMax;
+    this.hp = hp;
     this.day = day;
     this.time = time;
     this.name = name;
@@ -206,6 +222,42 @@ function User(name = "UNKNOWN", status = "Thriving", health = 40, day = 0, time 
     this.toString = function(){
         return this.name;
     }
+    //User Methods
+    this.recover = function(amt = 1){ //
+        let amtRec;
+        if(amt <= 0) amtRec = 0;
+        else if(this.hp+amt > this.hpMax){
+            amtRec = this.hpMax - this.hp;
+        } else {
+            amtRec = amt;
+        }
+        this.hp += amtRec;
+        addDialogue(`Recovered ${amtRec} hitpoints.`)
+
+    }
+    this.damage = function(amt = 1, type = "Slashing"){
+        let amtDmg = amt;
+        if(amtDmg < 0) amtDmg = 0;
+        //TODO: Check for resistances and recalculate amtDmg
+        this.hp -= amtDmg;
+        //Death
+        if(this.hp <= 0){
+            this.hp = 0;
+            this.status = statusOptions[0];
+            addDialogue(`You've succumbed to your wounds after taking ${amtDmg} ${type} damage.`)
+            changeUser();
+            return amtDmg;
+        } else {
+            addDialogue(`You take ${amtDmg} ${type} damage.`);
+            if(this.hp >= 81) this.status = statusOptions[5]
+            else if(this.hp >= 61) this.status = statusOptions[4];
+            else if (this.hp >= 41) this.status = statusOptions[3];
+            else if (this.hp >= 21) this.status = statusOptions[2];
+            else if (this.hp >= 1) this.status = statusOptions[1];
+            return amtDmg;
+        }
+    }
+
 }
 //#endregion
 //#endregion
@@ -230,26 +282,27 @@ buttonChoice2.onclick = function () {
 buttonGetFood.onclick = function(){
     
     if(canHunt == true){
-        user.health -= Math.floor(Math.random() * 10);
+        addDialogue(`The hunt commences...`);
+        user.damage(rollDice(["1d8","1d4"]), damageTypes[Math.floor(Math.random()*4)]);
         addItem("Flesh", "COLLECTIBLE", 1);
         canHunt = false;
         lastHunt = lastFrameTimeMs;
+        addDialogue(`Must rest and wait ${Math.round(huntTime /1000)} seconds to hunt again.`);
     } 
-
-    addDialogue(`The hunt commences, must rest and wait ${Math.round(huntTime /1000)} seconds to hunt again.`);
     buttonGetFood.disabled = true
     setTimeout(function() {buttonGetFood.disabled = false}, huntTime);
 }
 
 buttonEatFood.onclick = function(){
     if(canEat == true){
+        addDialogue(`You begin feasting...`);
         let eaten = removeItem("Flesh");
         if(eaten == true){
-            user.health += 5;
+            user.recover(rollDice(["1d8"]));
         }
         canEat = false;
         lastEat = lastFrameTimeMs;
-        addDialogue(`You begin feasting, must wait ${Math.round(eatTime /1000)} seconds to devour more.`);
+        addDialogue(`Must wait ${Math.round(eatTime /1000)} seconds to devour more.`);
     } 
     buttonEatFood.disabled = true
     setTimeout(function() {buttonEatFood.disabled = false}, eatTime);
@@ -352,15 +405,15 @@ function itemInit(){
     ); //Wrench
     createWeaponItem(
         "Corpse Feasters Maw", 
-        "Two gaping maws fused to a single malformed skull, one for crushing bone, the other for tearing. Smaller in size and vaguely human.", 
+        "Two gaping maws fused to a single malformed skull, one for crushing bone, the other for tearing flesh. Smaller in size and vaguely human.", 
         10, 
         0, 
         "Useless",
-        "1d4", 
+        "1d8", 
         "Piercing", 
         0, 
-        1, 
-        10
+        1,
+        0
     ); //Corpse Feasters Maw
 
     //#endregion
@@ -532,7 +585,6 @@ function Event(prompt = "RANDOM", c1text = "DONE", c2text = "FAILED", risk = 1, 
     this.run = function(){
         this.ran = true;
         if(c1 == true){
-            user.health -= Math.floor(Math.random() * 10 * this.risk);
             for (let i = 0; i < this.loot.length; i++) {
                 addItem(this.loot[i]);
             }
@@ -546,14 +598,7 @@ function Event(prompt = "RANDOM", c1text = "DONE", c2text = "FAILED", risk = 1, 
 
 //// COMBAT MECHANICS
 
+//Damage Types []
+
 // Stat Ratings [1-5] 
 // 1: Minima, 2: Low, 3: Average, 4: High, 5: Maxima
-
-function Enemy(name = "UNIDENTIFIED", health = 3, attack = 3, stability = 3){
-    this.name = name;
-    this.health = health*20;
-    this.attack = attack;
-    this.stability = Math.ceil((Math.random()*4*stability));
-    ///
-
-}
