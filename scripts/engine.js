@@ -616,25 +616,20 @@ function InvItem(name = "UNIDENTIFIED", type = "COLLECTIBLE", count = 1, durabil
 }
 
 function reduceDurability(invItem = new InvItem(), entity = new Entity()){
-    switch(invItem.type){
-        case "WEAPON":
-            invItem.durability -= WEAPON_DB.get(invItem.name).durabilityLoss;
-            break;
-        case "ARMOR":
-            invItem.durability -= ARMOR_DB.get(invItem.name).durabilityLoss;
-            break;
-        return; 
-        
-    }   
-    if(this.durability <= 0) {
-        count--;
-        if (this.count == 0) {
+    if(invItem.type == "WEAPON") {
+        invItem.durability -= WEAPON_DB.get(invItem.name).durabilityLoss;
+    }
+    else if(invItem.type == "ARMOR") {
+        invItem.durability -= ARMOR_DB.get(invItem.name).durabilityLoss;
+    }
+    if(invItem.durability <= 0) {
+        invItem.count--;
+        if (invItem.count == 0) {
             entity.inventory.delete(invItem.name);
         } else {
-            this.durability = 100;
+            invItem.durability = 100;
         }
     }
-    return true;
 }
 
 function createCollectibleItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Belt"], value = 0, rarity = "Commodity"){
