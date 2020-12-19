@@ -4,14 +4,30 @@
 - Include position variables and distance functions for range checking
 - Add ammo variable to weapons and creature parts
 - Function to randomize loot table of a creature (inventory)
+- Exp system
+    - Some items have level prerequisites for usage (Can still have in inventory)
+    - Some items have stat prerequeisites
+    - All humanoids have xp values and a level) level will affect the difficulty of tthe creature as it multiplies stats maybe?
+    - Stats can be increased by leveling
+        - As well as attributes 
+        -(and maybe weapons/armor have their own experience?)
 - Sanity
     - As it decreases youll see some things that are really there, see reality what its really for
     - Decreases when you get hit/see something crazy
     - Acc Down, Dmg Up
 - Combat System
+    - Types of AI
+        - Aggressive //
+        - Reactive // 
+        - Defensive // Will prioritize defensive capabilities over offensive capabilities, such as preferring to counter
+        - Survivalist // Focus on survival, will not make risky maneuveurs. May attempt to hide and flee/run more often
+        - Chaotic // May do random shit, even when directly in harms way
+
+    - rangedAttack()
     -Attack option, choose hand and use the item in it as a weapon. Items not defined as weapons deal a base 1d4 damage + modifiers if resasonable.
     -Defend option, could be dodging/using a shield/withstanding an incoming blow
 - Exploration?
+    -https://www.youtube.com/watch?v=ByvAud_2raU
     -Items have a use array, a list of keywords for items that can be a potential alternative use
     EX: .uses = []
 = Down the line
@@ -49,16 +65,8 @@ updateEquipment();
 let maxFPS = 30;
 let lastFrameTimeMs = 0; 
 
-// Duration variables (in ms)
-let nextDayTime = 3600; 
-
-let lastHunt = 0;
-let huntTime = 10000;
-let canHunt = true;
-
-let lastEat = 0;
-let eatTime = 5000;
-let canEat = true;
+// Duration variables (in s)
+let nextDayTime = maxFPS * 120; 
 
 let buttonGetFood = document.querySelector('#getFood');
 let buttonEatFood = document.querySelector('#eatFood');
@@ -103,23 +111,18 @@ function mainLoop(timestamp) {
 }
 
 function update(){
+    //increment time
+    if(!paused){
+        player.time++;
+    }
+
     //Day Cycle
-    player.time++;
     if (player.time > nextDayTime) {
         player.time = 0;
-        player.hurt(rollDice(["1d10"]),"Mind");
+        player.hurt(rollDice("1d10",1),"Mind");
         player.day++;
     }
 
-    //Hunt Cycle
-    if (canHunt == false) {
-        canHunt = (lastFrameTimeMs > lastHunt + huntTime) ? true : false;
-    }
-
-    //Eat Cycle
-    if(canEat == false) {
-        canEat = (lastFrameTimeMs > lastEat + eatTime) ? true : false;
-    }
     if (player.inventory.get("Flesh") == undefined) buttonEatFood.style.visibility = "hidden";
     else buttonEatFood.style.visibility = "visible";
 
@@ -130,8 +133,7 @@ function update(){
     // }
 
     //Check if paused
-    if(paused == true){
-    }
+ 
 
     //Update HTML
     elemHealth.textContent = player.hp;
@@ -140,30 +142,29 @@ function update(){
     save();
 }
 
-//Roll one, or multiple dice for a specific damage type
-function rollDice(dArr = ["1d8"]){
-    let rStr = "Rolling";
+//Roll one, or multiple dice for a specific damage type with a bonus option
+function rollDice(dStr = "1d8", bonus = 0){
+    let rStr;
+    if(bonus != 0) rStr = `Rolling ${dStr} ${(bonus < 0) ? "-":"+"} ${Math.abs(bonus)}`;
+    else rStr = `Rolling ${dstr}`;
     let oStr = ":";
-    let total = 0;
-    for(let i = 0; i < dArr.length; i++){
-        let dStr = dArr[i];
-        if(i == 0) rStr = rStr + ` ${dStr}`;
-        else rStr = rStr + ` + ${dStr}`;
-        let dIndex = dStr.indexOf("d");
-        let num = parseInt(dStr.substring(0,dIndex),10);
-        let size = parseInt(dStr.substring(dIndex+1),10);
-        if(num <= 0 || size <= 0){
-            console.log("Error, cannot roll with non-positive integers");
-            return 0;
-        }
-        for(let j = 0; j < num; j++){
-            let result = parseInt(Math.floor(Math.random() * size)+1);
-            total += result;
-            if(i == 0 && j == 0) oStr += ` ${result}`;
-            else oStr += ` + ${result}`;
-        }
+    let total = 0; 
+    let dIndex = dStr.indexOf("d");
+    let num = parseInt(dStr.substring(0,dIndex),10);
+    let size = parseInt(dStr.substring(dIndex+1),10);
+    if(num <= 0 || size <= 0){
+        console.log("Error, cannot roll with non-positive integers");
+        return 0;
     }
-    rStr = rStr + oStr + ` = ${total}`;
+    for(let j = 0; j < num; j++){
+        let result = parseInt(Math.floor(Math.random() * size)+1);
+        total += result;
+        if(j == 0) oStr += ` ${result}`;
+        else oStr += ` + ${result}`;
+    }
+    total += bonus;
+    if(bonus != 0) rStr = rStr + oStr + ` ${(bonus < 0) ? "-":"+"} ${Math.abs(bonus)} = ${total}`;
+    else rStr = rStr + oStr + ` = ${total}`;
     console.log(rStr);
     return total;
 }
@@ -177,17 +178,10 @@ function changePlayer(){
     localStorage.setItem('player', JSON.stringify(player, replacer));
     welcomeHeading.textContent = player.welcome;
     lastFrameTimeMs = 0;
-    lastHunt = 0;
-    lastEat = 0;
+    huntClock = 0;
+    eatClock = 0;
     updateInventory();
     updateEquipment(); 
-
-/*
-    0   0
-      |
-      |
-      V
-*/
 }
 
 function load(){
@@ -260,35 +254,6 @@ buttonChoice2.onclick = function () {
     buttonChoice1.style.visibility = "hidden";
     buttonChoice2.style.visibility = "hidden";
     currentEvent.run();
-}
-
-buttonGetFood.onclick = function(){
-    
-    if(canHunt == true){
-        addDialogue(`The hunt commences...`);
-        player.hurt(rollDice(["1d8","1d4"]), damageTypes[Math.floor(Math.random()*4)]);
-        player.addItem("Flesh", "COLLECTIBLE", 1);
-        canHunt = false;
-        lastHunt = lastFrameTimeMs;
-        addDialogue(`Must rest and wait ${Math.round(huntTime /1000)} seconds to hunt again.`);
-    } 
-    buttonGetFood.disabled = true
-    setTimeout(function() {buttonGetFood.disabled = false}, huntTime);
-}
-
-buttonEatFood.onclick = function(){
-    if(canEat == true){
-        addDialogue(`You begin feasting...`);
-        let eaten = player.removeItem("Flesh");
-        if(eaten == true){
-            player.recover(rollDice(["1d8"]));
-        }
-        canEat = false;
-        lastEat = lastFrameTimeMs;
-        addDialogue(`Must wait ${Math.round(eatTime /1000)} seconds to devour more.`);
-    } 
-    buttonEatFood.disabled = true
-    setTimeout(function() {buttonEatFood.disabled = false}, eatTime);
 }
 
 buttonRestart.onclick = function(){
@@ -829,6 +794,7 @@ function Entity(name = "UNKNOWN", type = "Object", size = 1, inventory = null, e
         if(amtDmg < 0) amtDmg = 0;
         //TODO: Check for resistances and recalculate amtDmg
         this.hp -= amtDmg;
+    
         return amtDmg;
     }
 
@@ -965,6 +931,14 @@ function createEntity(name = "UNKNOWN", type = "Object", size = 1, inventory = n
 //#endregion
 
 //#region COMBAT SYSTEM
+/*
+Combat:
+1. Decide turn order
+    - Check for surprises, if an attacker engages combat and surprises the enemy then they essentially get a free turn.
+2. Can do a number of actions on a turn
+*/
+function beginCombat(){
+}
 
 function meleeAttack(attacker = player, weapon = WEAPON_DB.get("Fist"), target = player, part = ARMOR_DB.get("Human Torso")){
     if(weapon.damage == undefined) weapon = WEAPON_DB.get("Improvised Weapon");
@@ -974,10 +948,12 @@ function meleeAttack(attacker = player, weapon = WEAPON_DB.get("Fist"), target =
         return false;
     }
     */
-    let hitVal = rollDice(["1d20"]) + weapon.hit + getStatModifier(attacker, weapon.stat); // + attacker.buffs.get("hit");
-    let defVal = part.defense + getStatModifier(target, part.stat); // + target.buffs.get("defense");
+    let hitBonus = weapon.hit + getStatModifier(attacker, weapon.stat); // + attacker.buffs.get("hit") + expLevel;
+    let hitVal = rollDice("1d20",hitBonus);
+    let defVal = part.defense + getStatModifier(target, part.stat); // + target.buffs.get("defense") + expLevel;
     if(hitVal >= defVal){ // Hit!
-        let dmgVal = rollDice([weapon.damage]) + getStatModifier(attacker, weapon.stat) - part.reduction; // + attacker.buffs.get("damage")
+        let dmgBonus = getStatModifier(attacker, weapon.stat) - part.reduction; // + attacker.buffs.get("damage") + expLevel;
+        let dmgVal = rollDice(weapon.damage, dmgBonus);
         target.hurt(dmgVal, weapon.damage_type);
         reduceDurability(attacker.inventory.get(weapon.name), attacker);
         return true;
@@ -991,16 +967,20 @@ function meleeAttack(attacker = player, weapon = WEAPON_DB.get("Fist"), target =
 //     if(distanceBetween(attacker, target) > weapon.range2) {
 //         miss retard too far idiot
 //     }
-//     */
-//     let toHit = weapon.hit + getStatModifier(attacker, weapon.stat); // + attacker.buffs.get("hit");
-//     let hitVal = rollDice(["1d20"]) + toHit;
-//     if(hitVal >= part.defense){ // Hit!
-//         let dmgVal = rollDice([weapon.damage]) + getStatModifier(attacker, weapon.stat);
-//         target.hurt(dmgVal);
-//         reduceDurability(attacker.inventory.get(weapon.name), attacker);
-//     } else { // Miss!
-        
-//     }
 // }
 
 //#endregion
+
+//PLAYER MAP EXAMPLE
+/*
+         ___________________________
+        |                           |
+        |       ...........         |
+        |         ............      |
+        |      ...o..      .......  | 
+        |    .....    ,,,    .......|
+        |    ^^^.....        .....  |
+        |   ^^^.^^..@.........      |
+        |          ...              | 
+        |___________________________|
+*/
