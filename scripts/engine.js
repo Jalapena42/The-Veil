@@ -1,7 +1,6 @@
 'use strict';
 
 /*TODO:
-= UPDATE CORPSE FEEDER STATBLOCK
 - Include position variables and distance functions for range checking
 - Add ammo variable to weapons and creature parts
 - Function to randomize loot table of a creature (inventory)
@@ -15,9 +14,17 @@
 - Exploration?
     -Items have a use array, a list of keywords for items that can be a potential alternative use
     EX: .uses = []
+= Down the line
+- Combat Flavor Function
+    - Adds dialogue depending on creatures, weapons, and if the attack misses due to deflection or range.
+    - Database of premade possible dialogue options
+    - Randomly chosen from the options that fit the attack context
+    - Dialogue options dependant on damage type, the amount of damage done, killing blows, hit/miss, 
+        if miss due to strength based defense describe how the blow is absorbed/deflected
+        if miss due to dex based defense describe how agile the enemy dodges it
 */
 
-//#region MAIN ENGINE CODE
+//#region MAIN CODE
 
 //#region INIT       
 let admins = ["REECE","PHILIP","DAVI"];
@@ -96,7 +103,6 @@ function mainLoop(timestamp) {
 }
 
 function update(){
-
     //Day Cycle
     player.time++;
     if (player.time > nextDayTime) {
@@ -162,6 +168,8 @@ function rollDice(dArr = ["1d8"]){
     return total;
 }
 
+//#endregion
+
 //#region SAVE STATE SYSTEM
 function changePlayer(){
     localStorage.removeItem('player');
@@ -218,18 +226,23 @@ function replacer(key,value) {
 function reviver(key, value) {
     if(typeof value === 'object' && value !== null){
         if(value.dataType === 'Map') {
-            let map = new Map()
-            value.value.forEach(element => {
-                let invItem = new InvItem(element[1].name, element[1].type, element[1].count, element[1].durability);
-                map.set(element[0], invItem);
-            });
+            let map = new Map();
+            if(key == "inventory" || key == "equipment"){
+                value.value.forEach(element => {
+                    let invItem = new InvItem(element[1].name, element[1].type, element[1].count, element[1].durability);
+                    map.set(element[0], invItem);
+                });
+            } else if(key == "stats"){
+                value.value.forEach(element => {
+                    map.set(element[0], element[1]);
+                });
+            }
             return map;
         }
     }
     return value;
 }
 
-//#endregion
 //#endregion
 
 //#region HTML/CSS CODE
@@ -281,6 +294,7 @@ buttonEatFood.onclick = function(){
 buttonRestart.onclick = function(){
     changePlayer();
 }
+
 //#endregion
 
 function updateInventory(){
@@ -404,7 +418,7 @@ function itemInit(){
         "Bludgeoning", 
         0.5, 
         1, 
-        10
+        5
     ); //Wrench
     createWeaponItem(
         "Fist", 
@@ -433,8 +447,8 @@ function itemInit(){
         "1d4", 
         "Bludgeoning", 
         0, 
-        0, 
-        0
+        1, 
+        2
     ); //Fist
 
     //#endregion
@@ -449,8 +463,8 @@ function itemInit(){
         slots,
         value,
         rarity,
+        stat,
         defense,
-        type,
         durabilityLoss
     );
      */
@@ -462,8 +476,8 @@ function itemInit(){
         ["Head"],
         0,
         "Niche",
+        "Finesse",
         12,
-        "Natural",
         0
     ); //Human Torso
     createArmorItem(
@@ -473,8 +487,8 @@ function itemInit(){
         ["Body"],
         0,
         "Niche",
+        "Strength",
         10,
-        "Natural",
         0
     ); //Human Torso
     createArmorItem(
@@ -484,8 +498,8 @@ function itemInit(){
         ["Legs"],
         0,
         "Niche",
+        "Finesse",
         11,
-        "Natural",
         0
     ); //Human Legs
     //#endregion
@@ -526,7 +540,7 @@ function itemInit(){
         "null",
         0,
         0,
-        13,
+        12,
         0
     ); //Corpse Feaster Muscle
     createCreaturePart(
@@ -542,7 +556,7 @@ function itemInit(){
         "Piercing", 
         1, 
         0,
-        16,
+        14,
         -3
     ); //Corpse Feaster Maw
     createCreaturePart(
@@ -558,7 +572,7 @@ function itemInit(){
         "Slashing", 
         1, 
         0,
-        14,
+        12,
         -.5
     ); //Corpse Feaster Maw
     //#endregion
@@ -588,10 +602,10 @@ function Weapon(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", siz
 
 }
 
-function Armor(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Head","Body","Legs"], value = 0, rarity = "Niche", defense = 10, type = "Natural", durabilityLoss = -1, reduction = 0){
+function Armor(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Head","Body","Legs"], value = 0, rarity = "Niche", stat = "Strength", defense = 10, durabilityLoss = -1, reduction = 0){
     Item.call(this, name, desc, size, slots, value, rarity);
     this.defense = defense;
-    this.type = type;
+    this.stat = stat;
     this.durabilityLoss = durabilityLoss;
     this.reduction = reduction;
 }
@@ -637,15 +651,17 @@ function createCollectibleItem(name = "UNIDENTIFIED", desc = "An item shrouded i
     COLLECTIBLE_DB.set(item.name, item);
 }
 
-function createArmorItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Head","Body","Legs"], value = 0, rarity = "Niche", defense = 10, type = "Natural", durabilityLoss = -1, reduction = 0){
-    let armor = new Armor(name, desc, size, slots, value, rarity, defense, type, durabilityLoss, reduction);
+function createArmorItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Head","Body","Legs"], value = 0, rarity = "Niche", stat = "Strength", defense = 10, durabilityLoss = -1, reduction = 0){
+    let armor = new Armor(name, desc, size, slots, value, rarity, stat, defense, durabilityLoss, reduction);
     ARMOR_DB.set(armor.name, armor);
 } 
+
 function createWeaponItem(name = "UNIDENTIFIED", desc = "An item shrouded in mystery", size = 1, slots = ["Hands","Belt"], value = 0, rarity = "Commodity", stat = "Strength", hit = 0, damage = "1d8", type = "Bludgeoning", durabilityLoss = 10, range = 1, range2 = 0){
     let weapon = new Weapon(name, desc, size, slots, value, rarity, stat, hit, damage, type, durabilityLoss, range, range2);
     WEAPON_DB.set(weapon.name, weapon)
     
 }
+
 function createCreaturePart(name = "UNIDENTIFIED", desc = "A part belonging to a mysterious creature", size = 1, slots = ["Creature"], value = 0, rarity = "Useless", stat = "Strength", hit = 0, damage = "1d8", damage_type = "Slashing", range = 1, range2 = 0, defense = 5, reduction = 0){
     let creature_part = new CreaturePart(name, desc, size, slots, value, rarity, stat, hit, damage, damage_type, range, range2, defense, reduction);
     CREATURE_PART_DB.set(name, creature_part);
@@ -697,8 +713,6 @@ function getItem(invItem = null){
 }
 
 //#endregion
-
-
 
 //#region STORY CODE
 
@@ -762,7 +776,7 @@ function entityInit(){
         new Map([["Offense1", new InvItem("Corpse Feaster Maw", "CREATURE")],["Offense2", new InvItem("Corpse Feaster Claws", "CREATURE")],["Defense1", new InvItem("Corpse Feaster Muscle", "CREATURE")]]),
         50, 
         50, 
-        "A stout and foul creature, reminiscent of a humanoid with malformed features. Two mouthes drool and chatter their teeth, primed to tear flesh from bone.", 
+        "A stout and foul creature, reminiscent of a humanoid with malformed features. Two mouthes afixed to the same skull drool and chatter their teeth, primed to tear flesh from bone.", 
         createStatBlock(12,14,10,8,6,2)
     );
 }
@@ -784,7 +798,6 @@ function tempStatChange(entity = player, stat = "Strength", val = "2", time = 30
     setTimeout(function(){entity.stats.set(stat, oldVal);},time);
 }
 
-
 function Entity(name = "UNKNOWN", type = "Object", size = 1, inventory = null, equipment = null, hpMax = 50, hp = 50, desc = "", stats = createStatBlock()){
     this.name = name;
     this.type = type;
@@ -798,18 +811,20 @@ function Entity(name = "UNKNOWN", type = "Object", size = 1, inventory = null, e
     this.toString = function(){
         return this.desc;
     }
-    this.recover = function(amt = 1){ //
-        let amtRec;
-        if(amt <= 0) amtRec = 0;
-        else if(this.hp+amt > this.hpMax){
+
+    this.recover = function(amt = 0){ //
+        if(amt < 0) amt = 0;
+        let amtRec = amt + getStatModifier(this, "Vigor");
+        if(this.hp + amtRec > this.hpMax){
             amtRec = this.hpMax - this.hp;
-        } else {
-            amtRec = amt;
+        } else if(amtRec < 0){
+            amtRec = 0;
         }
+        console.log(`${this.name} recovered `)
         this.hp += amtRec;
 
     }
-    this.hurt = function(amt = 1){
+    this.hurt = function(amt = 1, type = "Slashing"){
         let amtDmg = amt;
         if(amtDmg < 0) amtDmg = 0;
         //TODO: Check for resistances and recalculate amtDmg
@@ -824,6 +839,7 @@ function Entity(name = "UNKNOWN", type = "Object", size = 1, inventory = null, e
 
 function Humanoid(name = "UNKNOWN", type = "Humanoid", size = 4, inventory = null, equipment = null, hpMax = 100, hp = 100, desc = "A human being with rugged and worn facial features.", stats = createStatBlock(), race = "European", gender = "Male", age = 30, height = "5'10", build = "slim", eyecolor = "Brown", haircolor = "Black", hairlength = "Short"){
     Entity.call(this, name, type, size, inventory, equipment, hpMax, hp, desc, stats);
+    Humanoid.prototype = Object.create(Entity.prototype);
     this.equipment = (equipment == null) ? new Map([["Head", new InvItem("Human Skull", "ARMOR")],["Body", new InvItem("Human Torso", "ARMOR")], ["Legs", new InvItem("Human Legs", "ARMOR")], ["LeftHand", new InvItem("Fist", "WEAPON")], ["RightHand", new InvItem("Fist", "WEAPON")],["Belt1", new InvItem("Empty","COLLECTIBLE")], ["Belt2", new InvItem("Empty","COLLECTIBLE")], ["Belt3", new InvItem("Empty","COLLECTIBLE")]]):equipment;
     this.race = race;
     this.eyecolor = eyecolor;
@@ -836,7 +852,8 @@ function Humanoid(name = "UNKNOWN", type = "Humanoid", size = 4, inventory = nul
 }
 
 function Player(name = "Poor Soul", type = "Humanoid", size = 4, inventory = null, equipment = null, hpMax = 100, hp = 40, invMaxSize = 20, invCurSize = 0, day = 0, time = 0, desc = "This is you!", stats = createStatBlock(), race = "European", gender = "Male", age = 30, height = "5'10", build = "slim", eyecolor = "Brown", haircolor = "Black", hairlength = "Short"){   
-    Humanoid.call(this, name, type, size, inventory, equipment, hpMax, hp, desc, stats, race, gender, age, height, build, eyecolor, haircolor, hairlength)
+    Humanoid.call(this, name, type, size, inventory, equipment, hpMax, hp, desc, stats, race, gender, age, height, build, eyecolor, haircolor, hairlength);
+    Player.prototype = Object.create(Humanoid.prototype);
     if(this.name == ""){
         this.name = "Poor Soul";
     }
@@ -945,36 +962,40 @@ function createEntity(name = "UNKNOWN", type = "Object", size = 1, inventory = n
     ENTITY_DB.set(entity.name, entity);
 }
 
-
-
-
 //#endregion
 
-//#endregion
 //#region COMBAT SYSTEM
 
-// function meleeAttack(attacker = player, weapon = WEAPON_DB.get("Fist"), target = player, part = ARMOR_DB.get("Human Torso")){
-//     if(weapon.damage == undefined) weapon = WEAPON_DB.get("Improvised Weapon");
-//     let toHit = weapon.hit + getStatModifier(attacker, wepStat); // + attacker.buffs.get("hit");
-//     let hitVal = rollDice("1d20") + toHit;
-//     if(hitVal >= part.defense){ // Hit!
-//         let dmgVal = rollDice(wepDmg) + getStatModifier(attacker, wepStat) - part.reduction;
-//         target.hurt(dmgVal);
-//         reduceDurability(attacker.inventory.get(weapon.name), attacker);
-//     }
-// }
+function meleeAttack(attacker = player, weapon = WEAPON_DB.get("Fist"), target = player, part = ARMOR_DB.get("Human Torso")){
+    if(weapon.damage == undefined) weapon = WEAPON_DB.get("Improvised Weapon");
+    /*Check range
+    if(distanceBetween(attacker, target) > weapon.range2) {
+        miss retard too far idiot retard
+        return false;
+    }
+    */
+    let hitVal = rollDice(["1d20"]) + weapon.hit + getStatModifier(attacker, weapon.stat); // + attacker.buffs.get("hit");
+    let defVal = part.defense + getStatModifier(target, part.stat); // + target.buffs.get("defense");
+    if(hitVal >= defVal){ // Hit!
+        let dmgVal = rollDice([weapon.damage]) + getStatModifier(attacker, weapon.stat) - part.reduction; // + attacker.buffs.get("damage")
+        target.hurt(dmgVal, weapon.damage_type);
+        reduceDurability(attacker.inventory.get(weapon.name), attacker);
+        return true;
+    }
+    else return false;
+}
 
 // function rangedAttack(weapon = WEAPON_DB.get("Wrench"), attacker = player, target = player, part = ARMOR_DB.get("Human Torso")){
 //     /*Check range
 //     lose ammo
-//     if(distanceBetween(attacker, target) > weapon.range) {
+//     if(distanceBetween(attacker, target) > weapon.range2) {
 //         miss retard too far idiot
 //     }
 //     */
 //     let toHit = weapon.hit + getStatModifier(attacker, weapon.stat); // + attacker.buffs.get("hit");
-//     let hitVal = rollDice("1d20") + toHit;
+//     let hitVal = rollDice(["1d20"]) + toHit;
 //     if(hitVal >= part.defense){ // Hit!
-//         let dmgVal = rollDice(weapon.damage) + getStatModifier(attacker, weapon.stat);
+//         let dmgVal = rollDice([weapon.damage]) + getStatModifier(attacker, weapon.stat);
 //         target.hurt(dmgVal);
 //         reduceDurability(attacker.inventory.get(weapon.name), attacker);
 //     } else { // Miss!
