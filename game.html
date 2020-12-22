@@ -5,16 +5,28 @@
         <title id="tab-title">Beast</title>
         <link href="styles/style.css" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css2?family=Shadows+Into+Light+Two&display=swap" rel="stylesheet">
+        <script src="https://kit.fontawesome.com/5838a3234e.js" crossorigin="anonymous"></script>
     </head>
     <body>
         <div class='row'>
             <div class='column'>
                 <h1 id="welcome"></h1>
-                <button id="getFood">Hunt</button>
-                <button id="eatFood">Consume Flesh</button>
-                <button id="choice1">Yes</button>
-                <button id="choice2">No</button>
-                <button id="restart">Restart</button>
+                <div class='row' id="combatOptions">
+                    <a></a><button class="fa fa-retweet" aria-hidden="true" id="switch"></button>|&nbsp<a id="rangeState">Melee</a>&nbsp|</a>
+                    <button class="button" id="leftHand">Left Hand</button>
+                    <a>|</a>
+                    <button class="button" id="rightHand">Right Hand</button>
+                    <a>|&nbspBelt&nbsp|</a>
+                    <button class="button" id="belt1">Belt Slot 1</button>
+                    <a>|</a>
+                    <button class="button" id="belt2">Belt Slot 2</button>
+                    <a>|</a>
+                    <button class="button" id="belt3">Belt Slot 3</button>
+                    <a>|</a>
+                </div>
+                <p></p>
+                <p></p>
+                <button class="button" id="restart">Restart</button>
                 <p>Health: <a id='health'></a></p>
                 <p>Status: <a id='status'></a></p>
                 <p>Day: <a id="day"></a></p>
